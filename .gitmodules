@@ -1,0 +1,3 @@
+[submodule "deps/crfpp"]
+	path = deps/crfpp
+	url = https://github.com/taku910/crfpp.git

@@ -1,0 +1,24 @@
+{
+  "main": "node-crfpp.js",
+  "engines": {
+    "node": ">=14.0.0"
+  },
+  "dependencies": {
+    "node-addon-api": "^3.0.0"
+  },
+  "scripts": {
+    "test": "node --napi-modules ./test/test-node-crfpp.js"
+  },
+  "gypfile": true,
+  "name": "node-crfpp",
+  "version": "1.0.0",
+  "description": "Wrapper of the CRF++ library",
+  "keywords": [
+    "crf",
+    "crf++",
+    "node-crfpp",
+    "data-science"
+  ],
+  "author": "Brandon Fry",
+  "license": "ISC"
+}

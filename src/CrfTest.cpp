@@ -10,63 +10,90 @@ using namespace std;
 CrfTest::CrfTest(const Napi::CallbackInfo& info) : Napi::ObjectWrap<CrfTest>(info) {
     Napi::Env env = info.Env();
 
-    if (info.Length() <= 0 || !info[0].IsString()) {
-        Napi::TypeError::New(env, "String expected").ThrowAsJavaScriptException();
-        return;
+    if (info.Length() != 1 || !info[0].IsString()) {
+        Napi::TypeError::New(env, "Class must be constructed with String arg")
+            .ThrowAsJavaScriptException();
     } else {
         // Create the tagger object with passed argument string
-        Napi::String modelPath = info[0].As<Napi::String>();
-        mTagger = CRFPP::createTagger(modelPath.Utf8Value().c_str());
+        Napi::String args = info[0].As<Napi::String>();
+        mTagger = CRFPP::createTagger(args.Utf8Value().c_str());
     }
 }
 
 Napi::Value CrfTest::decode(const Napi::CallbackInfo& info) {
     Napi::Env env = info.Env();
 
-    // Message once about vlevel requirement for probability
-    if (mTagger->vlevel() < 1) {
-        std::cout << "vlevel was not set. No probability data available." << std::endl;
+    if (info.Length() != 1 || !info[0].IsArray()) {
+        Napi::TypeError::New(env, "Incorrect arguments. Array expected.")
+            .ThrowAsJavaScriptException();
     }
 
-    parseInput(info);
-    Napi::Array returnList = Napi::Array::New(env, mTagger->size());
+    // Ensure vlevel is at least 1 for probability data
+    const auto oldVlevel = mTagger->vlevel();
+    mTagger->set_vlevel(1);
 
-    for (uint i = 0; i < mTagger->size(); ++i) {
-      Napi::Object decodedTag = Napi::Object::New(env);
+    parseInput(env, info[0].As<Napi::Array>());
 
-      if (mTagger->xsize() > 0) {
-          decodedTag.Set("word", Napi::String::New(env, mTagger->x(i, 0)));
-      }
+    Napi::Object result = Napi::Object::New(env);
+    result.Set("overallConfidence", Napi::Number::New(env, mTagger->prob()));
+    result.Set("taggedData", getTaggedData(env));
 
-      decodedTag.Set("tag", Napi::String::New(env, mTagger->y2(i)));
+    // Reset vlevel
+    mTagger->set_vlevel(oldVlevel);
 
-      if (mTagger->vlevel() > 0) {
-          for (size_t j = 0; j < mTagger->ysize(); ++j) {
-              if (mTagger->y2(i) == mTagger->yname(j)) {
-                  decodedTag.Set("prob", Napi::Number::New(env, mTagger->prob(i,j)));
-                  break;
-              }
-          }
-      } else {
-          // No probability data available
-          decodedTag.Set("prob", Napi::Number::New(env, 0));
-      }
+    return result;
+}
 
-      returnList[i] = decodedTag;
+Napi::Value CrfTest::decodeNbest(const Napi::CallbackInfo& info) {
+    Napi::Env env = info.Env();
+
+    if (info.Length() < 1 || !info[0].IsArray()) {
+        Napi::TypeError::New(env, "Incorrect arguments. Expected Array.'")
+            .ThrowAsJavaScriptException();
     }
+
+    const auto oldNbest = mTagger->nbest();
+    if (info[1] && info[1].IsNumber()) {
+        // Set nbest value if provided, otherwise nbest value comes from constructor
+        // argument. E.g. "-m 'model' -n5"
+        mTagger->set_nbest(info[1].As<Napi::Number>().Uint32Value());
+    }
+
+    parseInput(env, info[0].As<Napi::Array>());
+
+    // Loop nbest times and append to return list
+    Napi::Array returnList = Napi::Array::New(env, mTagger->nbest());
+    for (size_t i = 0; i < mTagger->nbest(); ++i) {
+        if (!mTagger->next()) {
+            break;
+        }
+
+        Napi::Object result = Napi::Object::New(env);
+        result.Set("overallConfidence", Napi::Number::New(env, mTagger->prob()));
+        result.Set("taggedData", getTaggedData(env));
+
+        returnList[i] = result;
+    }
+
+    // Reset nbest value
+    mTagger->set_nbest(oldNbest);
 
     return returnList;
 }
 
-Napi::Value CrfTest::decodeBest(const Napi::CallbackInfo& info) {
+Napi::Value CrfTest::decodeBestTag(const Napi::CallbackInfo& info) {
     Napi::Env env = info.Env();
 
-    if (mTagger->vlevel() < 2) {
-        // Without probability values, the best values cannot be determined. Throw error.
-        Napi::TypeError::New(env, "v level of 2 is required").ThrowAsJavaScriptException();
+    if (info.Length() != 1 || !info[0].IsArray()) {
+        Napi::TypeError::New(env, "Incorrect arguments. Array expected.")
+            .ThrowAsJavaScriptException();
     }
 
-    parseInput(info);
+    // Ensure vlevel is at 2 so all tags are given per token
+    const auto oldVlevel = mTagger->vlevel();
+    mTagger->set_vlevel(2);
+
+    parseInput(env, info[0].As<Napi::Array>());
     Napi::Array returnList = Napi::Array::New(env, mTagger->size());
 
     // Find highest probability for each token
@@ -86,10 +113,13 @@ Napi::Value CrfTest::decodeBest(const Napi::CallbackInfo& info) {
         }
 
         decodedTag.Set("tag", Napi::String::New(env, mTagger->yname(bestProbIndex)));
-        decodedTag.Set("prob", Napi::Number::New(env, mTagger->prob(i,bestProbIndex)));
+        decodedTag.Set("confidence", Napi::Number::New(env, mTagger->prob(i,bestProbIndex)));
 
         returnList[i] = decodedTag;
     }
+
+    // Reset vlevel
+    mTagger->set_vlevel(oldVlevel);
 
     return returnList;
 }
@@ -97,26 +127,85 @@ Napi::Value CrfTest::decodeBest(const Napi::CallbackInfo& info) {
 Napi::Value CrfTest::decodeToTagsList(const Napi::CallbackInfo& info) {
     Napi::Env env = info.Env();
 
-    // Message once about vlevel requirement for probability
-    if (mTagger->vlevel() < 1) {
-        std::cout << "vlevel was not set. No probability data available." << std::endl;
+    if (info.Length() != 1 || !info[0].IsArray()) {
+        Napi::TypeError::New(env, "Incorrect arguments. Array expected.")
+            .ThrowAsJavaScriptException();
     }
 
-    parseInput(info);
+    // Ensure vlevel is at least 1 for probability data
+    const auto oldVlevel = mTagger->vlevel();
+    mTagger->set_vlevel(1);
+
+    parseInput(env, info[0].As<Napi::Array>());
+
+    // Reset vlevel
+    mTagger->set_vlevel(oldVlevel);
+
+    return getTagsToWords(env);
+}
+
+Napi::Value CrfTest::decodeToTagsListNbest(const Napi::CallbackInfo& info) {
+    Napi::Env env = info.Env();
+
+    if (info.Length() < 1 || !info[0].IsArray()) {
+        Napi::TypeError::New(env, "Incorrect arguments. Array expected.")
+            .ThrowAsJavaScriptException();
+    }
+
+    // Ensure vlevel is at least 1 for probability data
+    const auto oldVlevel = mTagger->vlevel();
+    mTagger->set_vlevel(1);
+
+    const auto oldNbest = mTagger->nbest();
+    if (info[1] && info[1].IsNumber()) {
+        // Set nbest value if provided, otherwise nbest value comes from constructor
+        // argument. E.g. "-m 'model' -n5"
+        mTagger->set_nbest(info[1].As<Napi::Number>().Uint32Value());
+    }
+
+    parseInput(env, info[0].As<Napi::Array>());
+
+    Napi::Array returnList = Napi::Array::New(env, mTagger->nbest());
+    for (size_t i = 0; i < mTagger->nbest(); ++i) {
+        if (!mTagger->next()) {
+            break;
+        }
+
+        returnList[i] = getTagsToWords(env);
+    }
+
+    // Reset tagger values
+    mTagger->set_vlevel(oldVlevel);
+    mTagger->set_nbest(oldNbest);
+
+    return returnList;
+}
+
+Napi::Value CrfTest::toString(const Napi::CallbackInfo& info) {
+    Napi::Env env = info.Env();
+
+    if (info.Length() != 1 || !info[0].IsArray()) {
+        Napi::TypeError::New(env, "Incorrect arguments. Array expected.")
+            .ThrowAsJavaScriptException();
+    }
+
+    parseInput(env, info[0].As<Napi::Array>());
+    return Napi::String::New(env, mTagger->toString());
+}
+
+Napi::Object CrfTest::getTagsToWords(const Napi::Env& env) {
     std::unordered_map<std::string, std::string> tagToWord;
     std::string previousTag = "";
     double probSum = 0;
 
     // Initialize map with all given tags
     for (size_t i = 0; i < mTagger->ysize(); ++i) {
-        std::cout << "tag " << i << " " << mTagger->yname(i) << std::endl;
         tagToWord.emplace(mTagger->yname(i), "");
     }
 
     // Map each token's word to its assigned tag
     for (uint i = 0; i < mTagger->size(); ++i) {
         if (mTagger->xsize() > 0) {
-            std::cout << "tagToWord[mTagger->y2(i)] " << tagToWord[mTagger->y2(i)] << std::endl;
             if (tagToWord[mTagger->y2(i)] == "") {
                 // First entry, add the word only, do not add spaces, comma, etc.
                 tagToWord[mTagger->y2(i)] = mTagger->x(i, 0);
@@ -136,21 +225,19 @@ Napi::Value CrfTest::decodeToTagsList(const Napi::CallbackInfo& info) {
         if (mTagger->vlevel() > 0) {
             for (size_t j = 0; j < mTagger->ysize(); ++j) {
                 if (mTagger->y2(i) == mTagger->yname(j)) {
-                    std::cout << "prob " << mTagger->prob(i, j) << std::endl;
                     probSum += mTagger->prob(i, j);
-                    std::cout << "probSum " << probSum << std::endl;
-
                     break;
                 }
             }
         }
     }
 
-    // Build return object
+    // Create return object
     Napi::Object returnObj = Napi::Object::New(env);
 
     // Set probability
-    returnObj.Set("overallProb", Napi::Number::New(env, probSum / mTagger->size()));
+    returnObj.Set("avgTagConfidence", Napi::Number::New(env, probSum / mTagger->size()));
+    returnObj.Set("overallConfidence", Napi::Number::New(env, mTagger->prob()));
 
     // Set tags
     Napi::Object tagsObj = Napi::Object::New(env);
@@ -162,36 +249,54 @@ Napi::Value CrfTest::decodeToTagsList(const Napi::CallbackInfo& info) {
     return returnObj;
 }
 
-Napi::Value CrfTest::toString(const Napi::CallbackInfo& info) {
-    Napi::Env env = info.Env();
-    parseInput(info);
-    return Napi::String::New(env, mTagger->toString());
-}
+Napi::Array CrfTest::getTaggedData(const Napi::Env& env) {
+    Napi::Array returnList = Napi::Array::New(env, mTagger->size());
 
-void CrfTest::parseInput(const Napi::CallbackInfo& info)
-{
-    Napi::Env env = info.Env();
+    for (uint i = 0; i < mTagger->size(); ++i) {
+        Napi::Object decodedTag = Napi::Object::New(env);
 
-    if (!mTagger) {
-        Napi::TypeError::New(env, "Tagger object not created").ThrowAsJavaScriptException();
+        if (mTagger->xsize() > 0) {
+            decodedTag.Set("word", Napi::String::New(env, mTagger->x(i, 0)));
+        }
+
+        decodedTag.Set("tag", Napi::String::New(env, mTagger->y2(i)));
+
+        if (mTagger->vlevel() > 0) {
+            for (size_t j = 0; j < mTagger->ysize(); ++j) {
+                if (mTagger->y2(i) == mTagger->yname(j)) {
+                    decodedTag.Set("confidence", Napi::Number::New(env, mTagger->prob(i,j)));
+                    break;
+                }
+            }
+        } else {
+            // No probability data available
+            decodedTag.Set("confidence", Napi::Number::New(env, 0));
+        }
+
+        returnList[i] = decodedTag;
     }
 
+    return returnList;
+}
+
+void CrfTest::parseInput(const Napi::Env& env, const Napi::Array& tokens)
+{
     mTagger->clear();
 
     // Insert input
-    Napi::Array inputTokens = info[0].As<Napi::Array>();
-    for(uint i = 0; i < inputTokens.Length(); ++i) {
-      Napi::Value inputToken = inputTokens[i];
-      if (inputToken.IsString()) {
-          Napi::String inputStr = inputToken.As<Napi::String>();
-          mTagger->add(inputStr.Utf8Value().c_str());
-      }
+    for(uint i = 0; i < tokens.Length(); ++i) {
+       Napi::Value token = tokens[i];
+       if (token.IsString()) {
+           Napi::String tokenString = token.As<Napi::String>();
+           mTagger->add(tokenString.Utf8Value().c_str());
+       }
     }
 
     // Parse input
     bool isParsed = mTagger->parse();
     if ( isParsed == false) {
-        Napi::TypeError::New(env, "Failed to parse").ThrowAsJavaScriptException();
+        Napi::TypeError::New(env, "Failed to parse input")
+            .ThrowAsJavaScriptException();
     }
 }
 
@@ -201,8 +306,10 @@ Napi::Object Init(Napi::Env env, Napi::Object exports) {
         "CrfTest",
         {
             CrfTest::InstanceMethod("decode", &CrfTest::decode),
-            CrfTest::InstanceMethod("decodeBest", &CrfTest::decodeBest),
+            CrfTest::InstanceMethod("decodeBestTag", &CrfTest::decodeBestTag),
+            CrfTest::InstanceMethod("decodeNbest", &CrfTest::decodeNbest),
             CrfTest::InstanceMethod("decodeToTagsList", &CrfTest::decodeToTagsList),
+            CrfTest::InstanceMethod("decodeToTagsListNbest", &CrfTest::decodeToTagsListNbest),
             CrfTest::InstanceMethod("toString", &CrfTest::toString)
         }
     );

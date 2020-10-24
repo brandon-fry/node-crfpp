@@ -125,7 +125,8 @@ private:
     Napi::Object getTagsToWords(const Napi::Env& env);
 
     // Adds passed tokens to tagger and parses them.
-    // @param type:[], list of tokens to tag.
+    // @param env js env
+    // @param tokens the list of tokens to tag.
     void parseInput(const Napi::Env& env, const Napi::Array& tokens);
 
     // CRF++ tagger object

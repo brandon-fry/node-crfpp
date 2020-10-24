@@ -69,7 +69,7 @@ Napi::Value CrfTest::decodeNbest(const Napi::CallbackInfo& info) {
         }
 
         Napi::Object result = Napi::Object::New(env);
-        result.Set("overallConfidence", Napi::Number::New(env, mTagger->prob()));
+        result.Set("overallConfidence", Napi::Number::New(env, mTagger->empty() ? 0 : mTagger->prob()));
         result.Set("taggedData", getTaggedData(env));
 
         returnList[i] = result;
@@ -138,10 +138,13 @@ Napi::Value CrfTest::decodeToTagsList(const Napi::CallbackInfo& info) {
 
     parseInput(env, info[0].As<Napi::Array>());
 
+    // Get the return object before resetting vlevel
+    const Napi::Object& returnObj = getTagsToWords(env);
+
     // Reset vlevel
     mTagger->set_vlevel(oldVlevel);
 
-    return getTagsToWords(env);
+    return returnObj;
 }
 
 Napi::Value CrfTest::decodeToTagsListNbest(const Napi::CallbackInfo& info) {
@@ -215,7 +218,7 @@ Napi::Object CrfTest::getTagsToWords(const Napi::Env& env) {
                 tagToWord[mTagger->y2(i)] += std::string(" ") + mTagger->x(i, 0);
             } else {
                 // Add ' ,' between non-consecutive words with same tag
-                tagToWord[mTagger->y2(i)] += std::string(" ,") + mTagger->x(i, 0);
+                tagToWord[mTagger->y2(i)] += std::string(", ") + mTagger->x(i, 0);
             }
 
             previousTag = mTagger->y2(i);
@@ -237,7 +240,7 @@ Napi::Object CrfTest::getTagsToWords(const Napi::Env& env) {
 
     // Set probability
     returnObj.Set("avgTagConfidence", Napi::Number::New(env, probSum / mTagger->size()));
-    returnObj.Set("overallConfidence", Napi::Number::New(env, mTagger->prob()));
+    returnObj.Set("overallConfidence", Napi::Number::New(env, mTagger->empty() ? 0 : mTagger->prob()));
 
     // Set tags
     Napi::Object tagsObj = Napi::Object::New(env);
@@ -282,6 +285,10 @@ Napi::Array CrfTest::getTaggedData(const Napi::Env& env) {
 void CrfTest::parseInput(const Napi::Env& env, const Napi::Array& tokens)
 {
     mTagger->clear();
+
+    if( tokens.Length() == 0 ) {
+        return;
+    }
 
     // Insert input
     for(uint i = 0; i < tokens.Length(); ++i) {

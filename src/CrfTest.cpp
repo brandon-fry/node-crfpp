@@ -10,7 +10,7 @@ using namespace std;
 CrfTest::CrfTest(const Napi::CallbackInfo& info) : Napi::ObjectWrap<CrfTest>(info) {
     Napi::Env env = info.Env();
 
-    if (info.Length() != 1 || !info[0].IsString()) {
+    if (info.Length() < 1 || !info[0].IsString()) {
         Napi::TypeError::New(env, "Class must be constructed with String arg")
             .ThrowAsJavaScriptException();
     } else {
@@ -18,12 +18,17 @@ CrfTest::CrfTest(const Napi::CallbackInfo& info) : Napi::ObjectWrap<CrfTest>(inf
         Napi::String args = info[0].As<Napi::String>();
         mTagger = CRFPP::createTagger(args.Utf8Value().c_str());
     }
+
+    if( !mTagger ) {
+      Napi::TypeError::New(env, "Failed to create tagger with provided arguments")
+          .ThrowAsJavaScriptException();
+    }
 }
 
 Napi::Value CrfTest::decode(const Napi::CallbackInfo& info) {
     Napi::Env env = info.Env();
 
-    if (info.Length() != 1 || !info[0].IsArray()) {
+    if (info.Length() < 1 || !info[0].IsArray()) {
         Napi::TypeError::New(env, "Incorrect arguments. Array expected.")
             .ThrowAsJavaScriptException();
     }
@@ -84,7 +89,7 @@ Napi::Value CrfTest::decodeNbest(const Napi::CallbackInfo& info) {
 Napi::Value CrfTest::decodeBestTag(const Napi::CallbackInfo& info) {
     Napi::Env env = info.Env();
 
-    if (info.Length() != 1 || !info[0].IsArray()) {
+    if (info.Length() < 1 || !info[0].IsArray()) {
         Napi::TypeError::New(env, "Incorrect arguments. Array expected.")
             .ThrowAsJavaScriptException();
     }
@@ -118,16 +123,21 @@ Napi::Value CrfTest::decodeBestTag(const Napi::CallbackInfo& info) {
         returnList[i] = decodedTag;
     }
 
+    Napi::Object result = Napi::Object::New(env);
+    // Since the "best" tags were taken, the conditional probability no longer applies.
+    result.Set("overallConfidence", Napi::Number::New(env, 0));
+    result.Set("taggedData", returnList);
+
     // Reset vlevel
     mTagger->set_vlevel(oldVlevel);
 
-    return returnList;
+    return result;
 }
 
 Napi::Value CrfTest::decodeToTagsList(const Napi::CallbackInfo& info) {
     Napi::Env env = info.Env();
 
-    if (info.Length() != 1 || !info[0].IsArray()) {
+    if (info.Length() < 1 || !info[0].IsArray()) {
         Napi::TypeError::New(env, "Incorrect arguments. Array expected.")
             .ThrowAsJavaScriptException();
     }
@@ -187,7 +197,7 @@ Napi::Value CrfTest::decodeToTagsListNbest(const Napi::CallbackInfo& info) {
 Napi::Value CrfTest::toString(const Napi::CallbackInfo& info) {
     Napi::Env env = info.Env();
 
-    if (info.Length() != 1 || !info[0].IsArray()) {
+    if (info.Length() < 1 || !info[0].IsArray()) {
         Napi::TypeError::New(env, "Incorrect arguments. Array expected.")
             .ThrowAsJavaScriptException();
     }

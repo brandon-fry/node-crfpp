@@ -6,7 +6,7 @@
 * in this directory.
 */
 
-const CrfTest = require("../node-crfpp").CrfTest;
+const CrfTest = require("../src/node-crfpp").CrfTest;
 const assert = require("assert");
 const path = require('path');
 
@@ -89,7 +89,7 @@ assert.doesNotThrow(() => getClassifier().decode([]), undefined, "decode([]) thr
 assert.ok((() => {
   const classifier = getClassifier();
   const result = classifier.decode(testInput);
-  console.log(result);
+  console.log(result, '\n');
   return checkDecodeData(result);
 })(), undefined, "decode returned unexpected result");
 
@@ -102,7 +102,7 @@ assert.doesNotThrow(() => getClassifier().decodeNbest([]), undefined, "decodeNbe
 assert.ok((() => {
   const classifier = getClassifier(1, 2);
   const result = classifier.decodeNbest(testInput);
-  console.log(result);
+  console.log(result, '\n');
   return checkDecodeNbestData(result, 2);
 })(), undefined, "decodeNbest returned unexpected result");
 
@@ -115,7 +115,7 @@ assert.doesNotThrow(() => getClassifier().decodeBestTag([]), undefined, "decodeB
 assert.ok((() => {
   const classifier = getClassifier();
   const result = classifier.decodeBestTag(testInput);
-  console.log(result);
+  console.log(result, '\n');
   return checkDecodeData(result);
 })(), undefined, "decodeBestTag returned unexpected result");
 
@@ -128,7 +128,7 @@ assert.doesNotThrow(() => getClassifier().decodeToTagsList([]), undefined, "deco
 assert.ok((() => {
   const classifier = getClassifier();
   const result = classifier.decodeToTagsList(testInput);
-  console.log(result);
+  console.log(result, '\n');
   return checkDecodeToTagsListData(result);
 })(), undefined, "decodeToTagsList returned unexpected result");
 
@@ -141,9 +141,23 @@ assert.doesNotThrow(() => getClassifier().decodeToTagsListNbest([]), undefined, 
 assert.ok((() => {
   const classifier = getClassifier(1, 2);
   const result = classifier.decodeToTagsListNbest(testInput);
-  console.log(result);
+  console.log(result, '\n');
   return checkDecodeToTagsListNbestData(result, 2);
 })(), undefined, "decodeToTagsList returned unexpected result");
+
+//------------------------------------------------------------------------------
+// Test toString
+//------------------------------------------------------------------------------
+assert.throws(() => getClassifier().toString(), undefined, "toString() did not throw");
+assert.throws(() => getClassifier().decodeToTagsListNbest(2), undefined, "toString(int) did not throw");
+assert.doesNotThrow(() => getClassifier().decodeToTagsListNbest([]), undefined, "toString([]) threw exception");
+assert.ok((() => {
+  const classifier = getClassifier(2, 0);
+  const result = classifier.toString(testInput);
+  console.log(result, '\n');
+  return typeof(result) === "string";
+})(), undefined, "toString returned unexpected result");
+
 
 //------------------------------------------------------------------------------
 // Done

@@ -1,25 +1,31 @@
 {
-  "main": "node-crfpp.js",
-  "engines": {
-    "node": ">=14.0.0"
-  },
+  "author": "Brandon Fry",
+  "name": "node-crfpp",
+  "version": "1.0.0",
+  "main": "./src/node-crfpp.js",
+  "description": "Wrapper of the CRF++ library",
   "dependencies": {
     "bindings": "~1.5.0",
     "node-addon-api": "^3.0.0"
   },
+  "engines": {
+    "node": ">=14.0.0"
+  },
+  "files": [
+    "/src"
+  ],
+  "gypfile": true,
   "scripts": {
     "test": "node --napi-modules ./test/test-node-crfpp.js"
   },
-  "gypfile": true,
-  "name": "node-crfpp",
-  "version": "1.0.0",
-  "description": "Wrapper of the CRF++ library",
   "keywords": [
     "crf",
     "crf++",
     "node-crfpp",
-    "data-science"
+    "conditional random fields",
+    "data science",
+    "pattern recognition",
+    "machine learning"
   ],
-  "author": "Brandon Fry",
   "license": "MIT"
 }

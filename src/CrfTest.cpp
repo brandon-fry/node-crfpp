@@ -20,8 +20,8 @@ CrfTest::CrfTest(const Napi::CallbackInfo& info) : Napi::ObjectWrap<CrfTest>(inf
     }
 
     if( !mTagger ) {
-      Napi::TypeError::New(env, "Failed to create tagger with provided arguments")
-          .ThrowAsJavaScriptException();
+        Napi::TypeError::New(env, "Failed to create tagger with provided arguments")
+            .ThrowAsJavaScriptException();
     }
 }
 
@@ -59,7 +59,7 @@ Napi::Value CrfTest::decodeNbest(const Napi::CallbackInfo& info) {
 
     const auto oldNbest = mTagger->nbest();
     if (info[1] && info[1].IsNumber()) {
-        // Set nbest value if provided, otherwise nbest value comes from constructor
+         // Set nbest value if provided, otherwise nbest value comes from constructor
         // argument. E.g. "-m 'model' -n5"
         mTagger->set_nbest(info[1].As<Napi::Number>().Uint32Value());
     }

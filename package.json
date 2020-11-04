@@ -12,6 +12,8 @@
     "node": ">=14.0.0"
   },
   "files": [
+    "binding.gyp",
+    "/deps",
     "/src"
   ],
   "gypfile": true,

@@ -1,17 +1,18 @@
 {
   'target_defaults': {
-    'default_configuration': 'Debug',
+    'default_configuration': 'Release',
     'configurations': {
       'Debug': {
-        'defines': [ 'DEBUG', '_DEBUG' ],
         'msvs_settings': {
           'VCCLCompilerTool': {
-            'RuntimeLibrary': 1, # static debug
+            'RuntimeLibrary': 1,
+          },
+          'VCLinkerTool': {
+            'GenerateDebugInformation': 'true',
           },
         },
       },
       'Release': {
-        'defines': [ 'NDEBUG' ],
         'msvs_settings': {
           'VCCLCompilerTool': {
             'RuntimeLibrary': 0, # static release
@@ -19,25 +20,12 @@
         },
       }
     },
-    'msvs_settings': {
-      'VCLinkerTool': {
-        'GenerateDebugInformation': 'true',
-      },
-    },
-    'include_dirs': [
-      '../libdvbtee/libdvbpsi/src',
-      '../libdvbtee/libdvbpsi/src/tables',
-      '../libdvbtee/libdvbpsi/src/descriptors',
-      '../libdvbtee/libdvbpsi'
-    ],
     'defines': [
-      'PIC',
       'HAVE_CONFIG_H'
     ],
   },
 
   'targets': [
-    # crfpp
     {
       'target_name': 'crfpp',
       'product_prefix': 'lib',

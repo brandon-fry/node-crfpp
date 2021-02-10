@@ -6,7 +6,7 @@ This module builds the CRF++ as a native addon, providing an entry point to this
 Note: Currently, the functionality provided by crf_learn.exe is not implemented. This means that a pre-generated model file is required. See test/test-node-crfpp.js for example usage.
 
 ## Requirements
-* node >= 14.0.0
+* node >= 12.2.0
 * node-gyp
 
 ## Installation

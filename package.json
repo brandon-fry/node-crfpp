@@ -1,7 +1,7 @@
 {
   "author": "Brandon Fry",
   "name": "node-crfpp",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "main": "./src/node-crfpp.js",
   "description": "Wrapper of the CRF++ library",
   "dependencies": {
@@ -29,5 +29,9 @@
     "pattern recognition",
     "machine learning"
   ],
-  "license": "MIT"
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/brandon-fry/node-crfpp/issues"
+  },
+  "homepage": "https://github.com/brandon-fry/node-crfpp#readme"
 }
